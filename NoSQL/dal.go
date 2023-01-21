@@ -6,6 +6,7 @@ import (
 )
 
 type pageNum uint64
+
 type page struct{
     num pageNum;
     data []byte;
@@ -14,6 +15,7 @@ type page struct{
 type dal struct{
     file *os.File;
     pageSize int;
+    * freeList;
 }
 
 func newDal(path string, pageSize int)(*dal,error)  {
@@ -24,6 +26,7 @@ func newDal(path string, pageSize int)(*dal,error)  {
     dal :=&dal{
         file: file,
         pageSize: pageSize,
+        freeList: newFreeList(),
     }
     return dal,nil
 }
@@ -31,7 +34,7 @@ func (d *dal) close() error  {
     if d.file !=nil{
         err:= d.file.Close()
         if err != nil{
-            return fmt.Errorf("Could not Close file: %s",err)
+            return fmt.Errorf("could not close file: %s",err)
         }
         d.file = nil
     }
