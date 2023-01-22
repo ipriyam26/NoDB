@@ -12,12 +12,15 @@ type page struct{
     data []byte;
 }
 
+// Data Access Layer
 type dal struct{
     file *os.File;
     pageSize int;
     * freeList;
 }
 
+
+// create a new DAL 
 func newDal(path string, pageSize int)(*dal,error)  {
     file,err := os.OpenFile(path,os.O_RDWR|os.O_CREATE,0666)
     if err !=nil{
@@ -30,6 +33,8 @@ func newDal(path string, pageSize int)(*dal,error)  {
     }
     return dal,nil
 }
+
+// close file
 func (d *dal) close() error  {
     if d.file !=nil{
         err:= d.file.Close()
@@ -48,6 +53,8 @@ func (d *dal) allocateEmptyPage() *page{
     
 }
 
+
+// Read the page, using offset to skip 
 func (d *dal) readPage(pageNum pageNum) (*page,error)   {   
 
     p := d.allocateEmptyPage()
@@ -64,6 +71,7 @@ func (d *dal) readPage(pageNum pageNum) (*page,error)   {
     
 }
 
+// write the page on memory taking into consideration the offset
 func (d *dal) writePage(p *page) error  {
 
     offset := int64(p.num) * int64(d.pageSize)
@@ -71,3 +79,35 @@ func (d *dal) writePage(p *page) error  {
     return err
     
 }
+
+
+// Get an Empty Page -> assign its pageNumber as 0(meta) -> serialize the data -> write on Page -> return page
+func (d *dal) writeMeta(m *meta) (*page,error) {
+    p := d.allocateEmptyPage()
+    p.num = metaPageNum
+    m.serialize(
+        p.data,
+
+    )
+
+    err:= d.writePage(p)
+
+    if err != nil{
+        return nil,err
+    }
+    return p,nil
+
+}
+func (d *dal) readMeta() (*meta,error) {
+ 
+    p,err := d.readPage(pageNum(metaPageNum))
+    if err !=nil{
+        return nil,err
+    }
+    metaPage := newEmptyMeta()
+    metaPage.deserialize(
+        p.data,
+    )
+    return metaPage,nil
+}
+
