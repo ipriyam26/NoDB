@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 )
@@ -17,20 +18,55 @@ type dal struct{
     file *os.File;
     pageSize int;
     * freeList;
+    * meta;
 }
 
 
 // create a new DAL 
 func newDal(path string, pageSize int)(*dal,error)  {
-    file,err := os.OpenFile(path,os.O_RDWR|os.O_CREATE,0666)
-    if err !=nil{
-        return nil,err
-    }
-    dal :=&dal{
-        file: file,
-        pageSize: pageSize,
-        freeList: newFreeList(),
-    }
+	dal := &dal{
+		meta:           newEmptyMeta(),
+	}
+
+    if _,err:= os.Stat(path);err==nil{
+        dal.file, err = os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0666)
+		if err != nil {
+			_ = dal.close()
+			return nil, err
+		}
+        meta,err := dal.readMeta()
+        if err != nil {
+            return nil, err
+        }
+        dal.meta = meta
+        
+        freelist, err := dal.readFreeList()
+        if err !=nil{
+            return nil,err
+        }
+        dal.freeList = freelist
+        
+        
+    }else if errors.Is(err, os.ErrNotExist){
+        dal.file,err = os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0666)
+        if err != nil {
+			_ = dal.close()
+			return nil, err
+		}
+        dal.freeList = newFreeList()
+
+        dal.freeListPage = dal.getNextPage()
+        _, err := dal.writeFreeList()
+		if err != nil {
+			return nil, err
+		}
+		_, err = dal.writeMeta(dal.meta)
+
+    }else {
+		return nil, err
+	}
+    
+    // }
     return dal,nil
 }
 
@@ -111,3 +147,29 @@ func (d *dal) readMeta() (*meta,error) {
     return metaPage,nil
 }
 
+func (d *dal) writeFreeList() (*page,error) {
+
+    p:=d.allocateEmptyPage()
+
+    p.num = d.freeListPage
+    d.freeList.serialize(p.data)
+    err :=d.writePage(p)
+    if err !=nil{
+        return nil,err
+    }
+    return p,err
+    
+}
+
+func (d *dal) readFreeList() (*freeList,error) {
+    p,err :=d.readPage(d.freeListPage)
+    if err !=nil{
+        return nil,err
+    }
+
+    freeList:=newFreeList()
+    freeList.deserialize(p.data)
+    return freeList,nil
+
+
+}
