@@ -24,10 +24,12 @@ type dal struct{
 
 // create a new DAL 
 func newDal(path string, pageSize int)(*dal,error)  {
+
 	dal := &dal{
 		meta:           newEmptyMeta(),
+        pageSize: pageSize,
 	}
-
+    // the path is in memory
     if _,err:= os.Stat(path);err==nil{
         dal.file, err = os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0666)
 		if err != nil {
@@ -40,11 +42,11 @@ func newDal(path string, pageSize int)(*dal,error)  {
         }
         dal.meta = meta
         
-        freelist, err := dal.readFreeList()
+        freeList, err := dal.readFreeList()
         if err !=nil{
             return nil,err
         }
-        dal.freeList = freelist
+        dal.freeList =freeList 
         
         
     }else if errors.Is(err, os.ErrNotExist){
@@ -56,6 +58,7 @@ func newDal(path string, pageSize int)(*dal,error)  {
         dal.freeList = newFreeList()
 
         dal.freeListPage = dal.getNextPage()
+        // leta write the current state to memory
         _, err := dal.writeFreeList()
 		if err != nil {
 			return nil, err
@@ -90,7 +93,7 @@ func (d *dal) allocateEmptyPage() *page{
 }
 
 
-// Read the page, using offset to skip 
+// Read the page, using offset to skip from memory
 func (d *dal) readPage(pageNum pageNum) (*page,error)   {   
 
     p := d.allocateEmptyPage()
@@ -134,6 +137,9 @@ func (d *dal) writeMeta(m *meta) (*page,error) {
     return p,nil
 
 }
+
+
+// read the meta page from memory -> take an empty meta page -> and deserialize the data data into the meta page
 func (d *dal) readMeta() (*meta,error) {
  
     p,err := d.readPage(pageNum(metaPageNum))
@@ -147,6 +153,8 @@ func (d *dal) readMeta() (*meta,error) {
     return metaPage,nil
 }
 
+
+// get an empty page -> assign its number as the the number of freeListPage, then serialize it -> write it to memory
 func (d *dal) writeFreeList() (*page,error) {
 
     p:=d.allocateEmptyPage()
@@ -162,6 +170,7 @@ func (d *dal) writeFreeList() (*page,error) {
 }
 
 func (d *dal) readFreeList() (*freeList,error) {
+    // this freeListPage comes from meta so this function should never be called before creating a meta or reading an existing one
     p,err :=d.readPage(d.freeListPage)
     if err !=nil{
         return nil,err

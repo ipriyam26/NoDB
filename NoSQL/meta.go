@@ -3,6 +3,7 @@ package main
 import "encoding/binary"
 const metaPageNum = 0
 
+// stored at first 0 pageNumber contains the page number of freeListPage in our case
 type meta struct{
     freeListPage pageNum;
 }

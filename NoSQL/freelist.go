@@ -16,6 +16,7 @@ func newFreeList() *freeList  {
 	}
 	
 }
+// check if their is a empty page in released Page and return it's ID, else return the maxPage
 func (fr *freeList) getNextPage() pageNum  {
 	if len(fr.releasedPages ) !=0{
 		pageId := fr.releasedPages[len(fr.releasedPages)-1]
@@ -27,13 +28,14 @@ func (fr *freeList) getNextPage() pageNum  {
 	return fr.maxPage
 }
 
+
 func (fr *freeList) releasePage(page pageNum)  {
 	fr.releasedPages = append(fr.releasedPages, page)
 
 }
 
 
-
+// convert maxPage and releasedPages to be stored in buffer then take each page and store them into buffer one by one.
 func (fr *freeList) serialize(buf []byte)  []byte{
 
 	pos:=0

@@ -19,7 +19,7 @@ func main() {
 	_ = dal.close()
 
 
-	// We expect the freelist state was saved, so we write to
+	// We expect the freeList state was saved, so we write to
 	// page number 3 and not overwrite the one at number 2
 	dal, _ = newDal("db.db",os.Getpagesize())
 	p = dal.allocateEmptyPage()
