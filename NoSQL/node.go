@@ -159,4 +159,36 @@ func (n *Node) deserialize(buf []byte) {
 		n.childNodes = append(n.childNodes, pageNum)
 	}
 	
+
+}
+
+func (d *dal) getNode(pgNum pageNum) (*Node,error){
+	p,err :=d.readPage(pgNum)
+	if err != nil{
+		return nil,err
+	}
+	node:=newEmptyNode()
+	node.deserialize(p.data)
+	node.pageNumNode = pgNum
+	return node,nil
+}
+
+func (d *dal) writeNode(n *Node) (*Node,error) {
+	p:=d.allocateEmptyPage()
+	if n.pageNumNode==0{
+		p.num = d.getNextPage()
+		n.pageNumNode = p.num
+	}else{
+		p.num = n.pageNumNode
+	}
+	p.data = n.serialize(p.data)
+	err:=d.writePage(p)
+	if err != nil{
+		return nil,err
+	}
+	return n,nil
+	
+}
+func (d *dal) deleteNode(pgNum pageNum) {
+	d.releasePage(pgNum);
 }
