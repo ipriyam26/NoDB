@@ -192,3 +192,23 @@ func (d *dal) writeNode(n *Node) (*Node,error) {
 func (d *dal) deleteNode(pgNum pageNum) {
 	d.releasePage(pgNum);
 }
+
+func (n *Node) writeNode(node *Node)( *Node,error) {
+
+	newNode,err := n.dal.writeNode(node)
+	if err !=nil{
+		return nil,err
+	}
+	return newNode,nil
+	
+}
+
+func (n *Node) writeNodes(nodes ...*Node) {
+	for _, node := range nodes {
+		n.writeNode(node)
+	}
+}
+
+func (n *Node) getNode(pgnum pageNum) (*Node, error) {
+	return n.dal.getNode(pgnum)
+}
