@@ -1,6 +1,9 @@
 package main
 
-import "encoding/binary"
+import (
+	"bytes"
+	"encoding/binary"
+)
 
 type Item struct{
 	key []byte;
@@ -174,6 +177,7 @@ func (d *dal) getNode(pgNum pageNum) (*Node,error){
 }
 
 func (d *dal) writeNode(n *Node) (*Node,error) {
+	
 	p:=d.allocateEmptyPage()
 	if n.pageNumNode==0{
 		p.num = d.getNextPage()
@@ -189,6 +193,8 @@ func (d *dal) writeNode(n *Node) (*Node,error) {
 	return n,nil
 	
 }
+
+
 func (d *dal) deleteNode(pgNum pageNum) {
 	d.releasePage(pgNum);
 }
@@ -211,4 +217,51 @@ func (n *Node) writeNodes(nodes ...*Node) {
 
 func (n *Node) getNode(pgnum pageNum) (*Node, error) {
 	return n.dal.getNode(pgnum)
+}
+
+//Todo: use binary search here instead of this linear one
+func (n *Node) findKeyInNode(key []byte) (bool,int){
+	for i, existingItem := range n.items {
+		res := bytes.Compare(existingItem.key,key)
+		if res ==0{
+			return true,i
+		}
+
+		if res==1{
+			return false,i
+		}
+	}
+	return false, len(n.items)
+
+}
+
+func (n *Node) findKey(key []byte) (int, *Node ,error) {
+	index, node, err := findKeyHelper(n, key)
+	if err != nil {
+		return -1, nil, err
+	}
+	return index, node, nil
+}
+
+
+
+func findKeyHelper(node *Node, key []byte)  (int, *Node ,error){
+	// search for this in current Node
+	wasFound,index := node.findKeyInNode(key)
+	if wasFound{
+		return index,node,nil
+	}
+
+	if node.isLeaf(){
+		return -1,nil,nil
+	}
+
+	nextChild,err := node.getNode( node.childNodes[index] )
+
+	if err !=nil{
+		return -1,nil,err
+	}
+
+	return findKeyHelper(nextChild, key)
+
 }
