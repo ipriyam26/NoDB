@@ -6,6 +6,7 @@ const metaPageNum = 0
 // stored at first 0 pageNumber contains the page number of freeListPage in our case
 type meta struct{
     freeListPage pageNum;
+    root pageNum;
 }
 
 func newEmptyMeta() *meta {
@@ -19,6 +20,14 @@ func (m *meta) serialize(buf []byte) {
     binary.LittleEndian.PutUint64(
         buf[pos:],
         uint64(
+            m.root,
+        ),
+    )
+
+    pos+=pageNumSize 
+       binary.LittleEndian.PutUint64(
+        buf[pos:],
+        uint64(
             m.freeListPage,
         ),
     )
@@ -30,6 +39,8 @@ func (m *meta) serialize(buf []byte) {
 // Convert the bytes from memory to freeListPage
 func (m *meta) deserialize(buf []byte) {
     pos := 0
+    m.root = pageNum(binary.LittleEndian.Uint64(buf[pos:]))
+    pos+=pageNumSize
     m.freeListPage = pageNum(binary.LittleEndian.Uint64(buf[pos:]))
     pos+=pageNumSize
 }
