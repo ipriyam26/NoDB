@@ -265,3 +265,40 @@ func findKeyHelper(node *Node, key []byte)  (int, *Node ,error){
 	return findKeyHelper(nextChild, key)
 
 }
+
+// elementSize returns the size of a key-value-childNode triplet at a given index.
+// If the node is a leaf, then the size of a key-value pair is returned. 
+// It's assumed i <= len(n.items)
+func (n *Node) elementSize(i int) int {
+	size := 0
+	size += len(n.items[i].key)
+	size += len(n.items[i].value)
+	size += pageNumSize // 8 is the pgnum size
+	return size
+}
+
+// nodeSize returns the node's size in bytes
+func (n *Node) nodeSize() int {
+	size := 0
+	size += nodeHeaderSize
+
+	for i := range n.items {
+		size += n.elementSize(i)
+	}
+
+	// Add last page
+	size += pageNumSize // 8 is the pgnum size
+	return size
+}
+func (n *Node) addItem(item *Item, index int) int {
+	if index == len(n.items){
+		n.items = append(n.items, *item)
+		return index
+	}
+
+	// lets empty the index position in n.items
+	n.items = append(n.items[:index+1], n.items[index:]...)
+
+	n.items[index] = *item
+	return index
+}

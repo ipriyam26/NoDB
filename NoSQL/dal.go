@@ -8,6 +8,18 @@ import (
 
 type pageNum uint64
 
+type Options struct{
+    pageSize int;
+	MinFillPercent float32;
+	MaxFillPercent float32;
+}
+
+
+var DefaultOptions = &Options{
+	MinFillPercent: 0.5,
+	MaxFillPercent: 0.95,
+}
+
 type page struct{
     num pageNum;
     data []byte;
@@ -19,16 +31,21 @@ type dal struct{
     pageSize int;
     * freeList;
     * meta;
+    minFillPercent float32;
+	maxFillPercent float32;
 }
 
 
 // create a new DAL 
-func newDal(path string, pageSize int)(*dal,error)  {
+func newDal(path string, pageSize int, options *Options)(*dal,error)  {
 
 	dal := &dal{
 		meta:           newEmptyMeta(),
-        pageSize: pageSize,
+        pageSize:       options.pageSize,
+		minFillPercent: options.MinFillPercent,
+		maxFillPercent: options.MaxFillPercent,
 	}
+
     // the path is in memory
     if _,err:= os.Stat(path);err==nil{
         dal.file, err = os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0666)
@@ -181,4 +198,21 @@ func (d *dal) readFreeList() (*freeList,error) {
     return freeList,nil
 
 
+}
+
+
+func (d *dal) maxThreshold() float32 {
+	return d.maxFillPercent * float32(d.pageSize)
+}
+
+func (d *dal) isOverPopulated(node *Node) bool {
+	return float32(node.nodeSize()) > d.maxThreshold()
+}
+
+func (d *dal) minThreshold() float32 {
+	return d.minFillPercent * float32(d.pageSize)
+}
+
+func (d *dal) isUnderPopulated(node *Node) bool {
+	return float32(node.nodeSize()) < d.minThreshold()
 }
