@@ -13,7 +13,7 @@ type Item struct{
 type Node struct{
 	*dal;
 	pageNumNode pageNum;
-	items []Item;
+	items []*Item;
 	childNodes	[]pageNum;
 }
 
@@ -153,7 +153,7 @@ func (n *Node) deserialize(buf []byte) {
 		value := buf[offset:offset+valueLen]
 		offset+=valueLen
 
-		n.items = append(n.items, *newItem(key,value))
+		n.items = append(n.items, newItem(key,value))
 	}
 
 	if isLeaf == 0 { // False
@@ -165,39 +165,6 @@ func (n *Node) deserialize(buf []byte) {
 
 }
 
-func (d *dal) getNode(pgNum pageNum) (*Node,error){
-	p,err :=d.readPage(pgNum)
-	if err != nil{
-		return nil,err
-	}
-	node:=newEmptyNode()
-	node.deserialize(p.data)
-	node.pageNumNode = pgNum
-	return node,nil
-}
-
-func (d *dal) writeNode(n *Node) (*Node,error) {
-	
-	p:=d.allocateEmptyPage()
-	if n.pageNumNode==0{
-		p.num = d.getNextPage()
-		n.pageNumNode = p.num
-	}else{
-		p.num = n.pageNumNode
-	}
-	p.data = n.serialize(p.data)
-	err:=d.writePage(p)
-	if err != nil{
-		return nil,err
-	}
-	return n,nil
-	
-}
-
-
-func (d *dal) deleteNode(pgNum pageNum) {
-	d.releasePage(pgNum);
-}
 
 func (n *Node) writeNode(node *Node)( *Node,error) {
 
@@ -235,35 +202,36 @@ func (n *Node) findKeyInNode(key []byte) (bool,int){
 
 }
 
-func (n *Node) findKey(key []byte) (int, *Node ,error) {
-	index, node, err := findKeyHelper(n, key)
+func (n *Node) findKey(key []byte, exact bool) (int, *Node, []int ,error) {
+	ancestorsIndexes := []int{0} // index of root
+	index, node, err := findKeyHelper(n, key, exact, &ancestorsIndexes)
 	if err != nil {
-		return -1, nil, err
+		return -1, nil, nil, err
 	}
-	return index, node, nil
+	return index, node, ancestorsIndexes, nil
 }
 
 
 
-func findKeyHelper(node *Node, key []byte)  (int, *Node ,error){
-	// search for this in current Node
-	wasFound,index := node.findKeyInNode(key)
-	if wasFound{
-		return index,node,nil
+func findKeyHelper(node *Node, key []byte, exact bool, ancestorsIndexes *[]int) (int, *Node ,error) {
+	wasFound, index := node.findKeyInNode(key)
+	if wasFound {
+		return index, node, nil
 	}
 
-	if node.isLeaf(){
-		return -1,nil,nil
+	if node.isLeaf() {
+		if exact {
+			return -1, nil, nil
+		}
+		return index, node, nil
 	}
 
-	nextChild,err := node.getNode( node.childNodes[index] )
-
-	if err !=nil{
-		return -1,nil,err
+	*ancestorsIndexes = append(*ancestorsIndexes, index)
+	nextChild, err := node.getNode(node.childNodes[index])
+	if err != nil {
+		return -1, nil, err
 	}
-
-	return findKeyHelper(nextChild, key)
-
+	return findKeyHelper(nextChild, key, exact, ancestorsIndexes)
 }
 
 // elementSize returns the size of a key-value-childNode triplet at a given index.
@@ -292,13 +260,48 @@ func (n *Node) nodeSize() int {
 }
 func (n *Node) addItem(item *Item, index int) int {
 	if index == len(n.items){
-		n.items = append(n.items, *item)
+		n.items = append(n.items, item)
 		return index
 	}
 
 	// lets empty the index position in n.items
 	n.items = append(n.items[:index+1], n.items[index:]...)
 
-	n.items[index] = *item
+	n.items[index] = item
 	return index
+}
+func (n *Node) isOverPopulated() bool {
+	return n.dal.isOverPopulated(n)
+}
+
+// isUnderPopulated checks if the node size is smaller than the size of a page.
+func (n *Node) isUnderPopulated() bool {
+	return n.dal.isUnderPopulated(n)
+}
+
+func (n *Node) split(nodeToSplit *Node,nodeToSplitIndex int) {
+	splitIndex:=nodeToSplit.getSplitIndex(nodeToSplit)
+	middleItem := nodeToSplit.items[splitIndex]
+	var newNode *Node
+
+	if nodeToSplit.isLeaf(){
+		newNode,_ = n.writeNode(
+			n.dal.newNode(nodeToSplit.items[splitIndex+1:],
+				[]pageNum{}))
+				nodeToSplit.items = nodeToSplit.items[:splitIndex]
+	}else{
+		newNode, _ = n.writeNode(n.dal.newNode(nodeToSplit.items[splitIndex+1:], nodeToSplit.childNodes[splitIndex+1:]))
+		nodeToSplit.items = nodeToSplit.items[:splitIndex]
+		nodeToSplit.childNodes = nodeToSplit.childNodes[:splitIndex+1]
+	}
+	n.addItem(middleItem,nodeToSplitIndex)
+
+	if len(n.childNodes) == nodeToSplitIndex+1 { // If middle of list, then move items forward
+		n.childNodes = append(n.childNodes, newNode.pageNumNode)
+	} else {
+		n.childNodes = append(n.childNodes[:nodeToSplitIndex+1], n.childNodes[nodeToSplitIndex:]...)
+		n.childNodes[nodeToSplitIndex+1] = newNode.pageNumNode
+	}
+
+	n.writeNodes(n, nodeToSplit)
 }

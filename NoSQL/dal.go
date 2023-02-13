@@ -156,6 +156,8 @@ func (d *dal) writeMeta(m *meta) (*page,error) {
 }
 
 
+
+
 // read the meta page from memory -> take an empty meta page -> and deserialize the data data into the meta page
 func (d *dal) readMeta() (*meta,error) {
  
@@ -170,6 +172,58 @@ func (d *dal) readMeta() (*meta,error) {
     return metaPage,nil
 }
 
+// func (d *dal) newNode(items []*Item, childNodes []pageNum) *Node {
+// 	node := newEmptyNode()
+// 	node.items = items
+// 	node.childNodes = childNodes
+// 	node.pageNum = d.getNextPage()
+// 	node.dal = d
+// 	return node
+// }
+
+func (d *dal) newNode(items []*Item,childNodes []pageNum) *Node {
+    node:=newEmptyNode()
+    node.items = items
+    node.childNodes = childNodes
+    node.pageNumNode = d.getNextPage()
+    node.dal = d
+    return node
+}
+
+
+func (d *dal) getNode(pgNum pageNum) (*Node,error){
+	p,err :=d.readPage(pgNum)
+	if err != nil{
+		return nil,err
+	}
+	node:=newEmptyNode()
+	node.deserialize(p.data)
+	node.pageNumNode = pgNum
+	return node,nil
+}
+
+func (d *dal) writeNode(n *Node) (*Node,error) {
+	
+	p:=d.allocateEmptyPage()
+	if n.pageNumNode==0{
+		p.num = d.getNextPage()
+		n.pageNumNode = p.num
+	}else{
+		p.num = n.pageNumNode
+	}
+	p.data = n.serialize(p.data)
+	err:=d.writePage(p)
+	if err != nil{
+		return nil,err
+	}
+	return n,nil
+	
+}
+
+
+func (d *dal) deleteNode(pgNum pageNum) {
+	d.releasePage(pgNum);
+}
 
 // get an empty page -> assign its number as the the number of freeListPage, then serialize it -> write it to memory
 func (d *dal) writeFreeList() (*page,error) {
@@ -215,4 +269,23 @@ func (d *dal) minThreshold() float32 {
 
 func (d *dal) isUnderPopulated(node *Node) bool {
 	return float32(node.nodeSize()) < d.minThreshold()
+}
+
+func (d *dal) getSplitIndex(node *Node) int      {
+
+    size:=0
+    size += nodeHeaderSize
+
+	for i := range node.items {
+		size += node.elementSize(i)
+
+		// if we have a big enough page size (more than minimum), and didn't reach the last node, which means we can
+		// spare an element
+		if float32(size) > d.minThreshold() && i < len(node.items) - 1 {
+			return i + 1
+		}
+	}
+
+	return -1
+    
 }
